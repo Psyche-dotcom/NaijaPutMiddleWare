@@ -2,6 +2,7 @@
 using Microsoft.EntityFrameworkCore;
 using NaijaPut.Core.Context;
 using NaijaPut.Core.DTO.Account;
+using NaijaPut.Core.DTO.Others;
 using NaijaPut.Core.Entities;
 using NaijaPut.Core.Repository.Interface;
 
@@ -38,7 +39,20 @@ namespace NaijaPut.Core.Repository.Implementation
             }
             return false;
         }
-
+        public async Task<DisplayUserWithRoleDto> GetUserWithDetails(string userid)
+        {
+            var user = await _context.Users.Include(u => u.Wallet).Select(u => new DisplayUserWithRoleDto()
+            {
+                Email = u.Email,
+                FirstName = u.FirstName,
+                LastName = u.LastName,
+                Id = u.Id,
+                WalletBalance = u.Wallet.Balance,
+                WalletId = u.Wallet.Id
+            })
+                .FirstOrDefaultAsync(u => u.Id == userid);
+            return user;
+        }
         public async Task<IList<string>> GetUserRoles(ApplicationUser user)
         {
             var getRoles = await _userManager.GetRolesAsync(user);

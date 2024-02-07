@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Http;
+﻿using AutoMapper;
+using Microsoft.AspNetCore.Http;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using NaijaPut.Core.DTO.Account;
@@ -16,13 +17,15 @@ namespace NaijaPut.Infrastructure.Service.Implementation
         private readonly IGenerateJwt _generateJwt;
         private readonly INaijaPutRepository<Wallet> _walletContext;
         private readonly IEmailServices _emailServices;
-        public AccountService(IAccountRepo accountRepo, ILogger<AccountService> logger, IEmailServices emailServices, IGenerateJwt generateJwt, INaijaPutRepository<Wallet> walletContext)
+        private readonly IMapper _mapper;
+        public AccountService(IAccountRepo accountRepo, ILogger<AccountService> logger, IEmailServices emailServices, IGenerateJwt generateJwt, INaijaPutRepository<Wallet> walletContext, IMapper mapper)
         {
             _accountRepo = accountRepo;
             _logger = logger;
             _generateJwt = generateJwt;
             _walletContext = walletContext;
             _emailServices = emailServices;
+            _mapper = mapper;
         }
         public async Task<ResponseDto<string>> RegisterUser(SignUp signUp, string Role)
         {
@@ -110,6 +113,83 @@ namespace NaijaPut.Infrastructure.Service.Implementation
                 return response;
             }
         }
+
+        public async Task<ResponseDto<string>> SuspendUserAsync(string useremail)
+        {
+            var response = new ResponseDto<string>();
+            try
+            {
+                var findUser = await _accountRepo.FindUserByEmailAsync(useremail);
+                if (findUser == null)
+                {
+                    response.ErrorMessages = new List<string>() { "There is no user with the email provided" };
+                    response.StatusCode = 404;
+                    response.DisplayMessage = "Error";
+                    return response;
+                }
+                findUser.SuspendUser = true;
+                var updateUser = await _accountRepo.UpdateUserInfo(findUser);
+                if (updateUser == false)
+                {
+                    response.ErrorMessages = new List<string>() { "Error in suspending user" };
+                    response.StatusCode = StatusCodes.Status400BadRequest;
+                    response.DisplayMessage = "Error";
+                    return response;
+                }
+
+                response.StatusCode = StatusCodes.Status200OK;
+                response.DisplayMessage = "Success";
+                response.Result = "Successfully suspend user";
+                return response;
+
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message, ex);
+                response.ErrorMessages = new List<string>() { "Error in suspending user" };
+                response.StatusCode = 500;
+                response.DisplayMessage = "Error";
+                return response;
+            }
+        }
+        public async Task<ResponseDto<string>> UnSuspendUserAsync(string useremail)
+        {
+            var response = new ResponseDto<string>();
+            try
+            {
+                var findUser = await _accountRepo.FindUserByEmailAsync(useremail);
+                if (findUser == null)
+                {
+                    response.ErrorMessages = new List<string>() { "There is no user with the email provided" };
+                    response.StatusCode = 404;
+                    response.DisplayMessage = "Error";
+                    return response;
+                }
+                findUser.SuspendUser = false;
+                var updateUser = await _accountRepo.UpdateUserInfo(findUser);
+                if (updateUser == false)
+                {
+                    response.ErrorMessages = new List<string>() { "Error in unsuspending user" };
+                    response.StatusCode = StatusCodes.Status400BadRequest;
+                    response.DisplayMessage = "Error";
+                    return response;
+                }
+                response.StatusCode = StatusCodes.Status200OK;
+                response.DisplayMessage = "Success";
+                response.Result = "Successfully unsuspend user";
+                return response;
+
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message, ex);
+                response.ErrorMessages = new List<string>() { "Error in unsuspending user" };
+                response.StatusCode = 500;
+                response.DisplayMessage = "Error";
+                return response;
+            }
+        }
+
         public async Task<ResponseDto<LoginResultDto>> LoginUser(SignInModel signIn)
         {
             var response = new ResponseDto<LoginResultDto>();
@@ -242,6 +322,115 @@ namespace NaijaPut.Infrastructure.Service.Implementation
                 return response;
             }
         }
+
+        public async Task<ResponseDto<DisplayUserWithRoleDto>> GetUserFullDetails(string userid)
+        {
+            var response = new ResponseDto<DisplayUserWithRoleDto>();
+            try
+            {
+
+                var findUser = await _accountRepo.FindUserByIdAsync(userid);
+                if (findUser == null)
+                {
+                    response.ErrorMessages = new List<string>() { "There is no user with the email provided" };
+                    response.StatusCode = 404;
+                    response.DisplayMessage = "Error";
+                    return response;
+                }
+                var retrieveUserDetails = await _accountRepo.GetUserWithDetails(userid);
+                var getUserRole = await _accountRepo.GetUserRoles(findUser);
+                if(getUserRole != null)
+                {
+                    retrieveUserDetails.UserRole = getUserRole[0];
+                }
+                
+                response.Result = retrieveUserDetails;
+                response.StatusCode = 200;
+                response.DisplayMessage = "Successful";
+                return response;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message, ex);
+                response.ErrorMessages = new List<string>() { "Error in retrieving user details" };
+                response.StatusCode = 500;
+                response.DisplayMessage = "Error";
+                return response;
+            }
+        }
+        public async Task<ResponseDto<string>> DeleteUser(string email)
+        {
+            var response = new ResponseDto<string>();
+            try
+            {
+                var findUser = await _accountRepo.FindUserByEmailAsync(email);
+                if (findUser == null)
+                {
+                    response.ErrorMessages = new List<string>() { "There is no user with the email provided" };
+                    response.StatusCode = 404;
+                    response.DisplayMessage = "Error";
+                    return response;
+                }
+                var deleteUser = await _accountRepo.DeleteUserByEmail(findUser);
+                if (deleteUser == false)
+                {
+                    response.ErrorMessages = new List<string>() { "Error in deleting user" };
+                    response.StatusCode = 501;
+                    response.DisplayMessage = "Error";
+                    return response;
+                }
+                response.StatusCode = StatusCodes.Status200OK;
+                response.DisplayMessage = "Success";
+                response.Result = "Successfully delete user";
+                return response;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message, ex);
+                response.ErrorMessages = new List<string>() { "Error in deleting user" };
+                response.StatusCode = 500;
+                response.DisplayMessage = "Error";
+                return response;
+            }
+        }
+
+        public async Task<ResponseDto<string>> UpdateUser(string email, UpdateUserDto updateUser)
+        {
+            var response = new ResponseDto<string>();
+            try
+            {
+                var findUser = await _accountRepo.FindUserByEmailAsync(email);
+                if (findUser == null)
+                {
+                    response.ErrorMessages = new List<string>() { "There is no user with the email provided" };
+                    response.StatusCode = 404;
+                    response.DisplayMessage = "Error";
+                    return response;
+                }
+                var mapUpdateDetails = _mapper.Map(updateUser, findUser);
+                var updateUserDetails = await _accountRepo.UpdateUserInfo(mapUpdateDetails);
+                if (updateUserDetails == false)
+                {
+                    response.ErrorMessages = new List<string>() { "Error in updating user info" };
+                    response.StatusCode = StatusCodes.Status501NotImplemented;
+                    response.DisplayMessage = "Error";
+                    return response;
+                }
+                response.StatusCode = StatusCodes.Status200OK;
+                response.DisplayMessage = "Success";
+                response.Result = "Successfully update user information";
+                return response;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex.Message, ex);
+                response.ErrorMessages = new List<string>() { "Error in updating user info" };
+                response.StatusCode = 500;
+                response.DisplayMessage = "Error";
+                return response;
+            }
+        }
+
         public async Task<ResponseDto<string>> ConfirmEmailAsync(int token, string email)
         {
             var response = new ResponseDto<string>();

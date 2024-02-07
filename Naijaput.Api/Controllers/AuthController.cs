@@ -1,7 +1,10 @@
 ﻿
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using NaijaPut.Core.DTO.Account;
+using NaijaPut.Core.DTO.Others;
 using NaijaPut.Infrastructure.Service.Interface;
+using System.IdentityModel.Tokens.Jwt;
 
 namespace Naijaput.Api.Controllers
 {
@@ -10,9 +13,12 @@ namespace Naijaput.Api.Controllers
     public class AuthController : ControllerBase
     {
         private readonly IAccountService _accountService;
-        public AuthController(IAccountService accountService)
+        private readonly IEmailServices _emailServices;
+
+        public AuthController(IAccountService accountService, IEmailServices emailServices)
         {
             _accountService = accountService;
+            _emailServices = emailServices;
         }
         [HttpPost("register")]
         public async Task<IActionResult> Register(SignUp signUp)
@@ -89,6 +95,125 @@ namespace Naijaput.Api.Controllers
             var result = await _accountService.ConfirmEmailAsync(token.token, email);
             if (result.StatusCode == 200)
             {
+                return Ok(result);
+            }
+            else if (result.StatusCode == 404)
+            {
+                return NotFound(result);
+            }
+            else
+            {
+                return BadRequest(result);
+            }
+        }
+        [Authorize(AuthenticationSchemes = "Bearer")]
+        [HttpDelete("delete_user/{email}")]
+        public async Task<IActionResult> DeleteUser(string email)
+        {
+            var result = await _accountService.DeleteUser(email);
+            if (result.StatusCode == 200)
+            {
+                return Ok(result);
+            }
+            else if (result.StatusCode == 404)
+            {
+                return NotFound(result);
+            }
+            else
+            {
+                return BadRequest(result);
+            }
+        }
+        
+        [Authorize(AuthenticationSchemes = "Bearer")]
+        [HttpGet("me/info")]
+        public async Task<IActionResult> GetUserFullDetails()
+        {
+            var userIdClaim = User.Claims.FirstOrDefault(c => c.Type == JwtRegisteredClaimNames.Jti).Value;
+            if (userIdClaim == null)
+            {
+                return BadRequest("Invalid user");
+            }
+            var result = await _accountService.GetUserFullDetails(userIdClaim);
+            if (result.StatusCode == 200)
+            {
+                return Ok(result);
+            }
+            else if (result.StatusCode == 404)
+            {
+                return NotFound(result);
+            }
+            else
+            {
+                return BadRequest(result);
+            }
+        }
+
+        [HttpGet("info/{userid}")]
+        public async Task<IActionResult> GetUserFullDetailByUserName(string userid)
+        {
+
+            var result = await _accountService.GetUserFullDetails(userid);
+            if (result.StatusCode == 200)
+            {
+                return Ok(result);
+            }
+            else if (result.StatusCode == 404)
+            {
+                return NotFound(result);
+            }
+            else
+            {
+                return BadRequest(result);
+            }
+        }
+        [Authorize(AuthenticationSchemes = "Bearer")]
+        [HttpPatch("update_details/{email}")]
+        public async Task<IActionResult> UpdateUserInfo(string email, UpdateUserDto updateUser)
+        {
+            var result = await _accountService.UpdateUser(email, updateUser);
+            if (result.StatusCode == 200)
+            {
+                return Ok(result);
+            }
+            else if (result.StatusCode == 404)
+            {
+                return NotFound(result);
+            }
+            else
+            {
+                return BadRequest(result);
+            }
+        }
+        [Authorize(AuthenticationSchemes = "Bearer", Roles = "ADMIN")]
+        [HttpPost("suspend_user/{email}")]
+        public async Task<IActionResult> SuspendUser(string email)
+        {
+            var result = await _accountService.SuspendUserAsync(email);
+            if (result.StatusCode == 200)
+            {
+                var message = new Message(new string[] { email }, "Suspend", $"<p>You have been suspended on lucky crush, please contact admin<p>");
+                _emailServices.SendEmail(message);
+                return Ok(result);
+            }
+            else if (result.StatusCode == 404)
+            {
+                return NotFound(result);
+            }
+            else
+            {
+                return BadRequest(result);
+            }
+        }
+        [Authorize(AuthenticationSchemes = "Bearer", Roles = "ADMIN")]
+        [HttpPost("unsuspend_user/{email}")]
+        public async Task<IActionResult> UnSuspendUser(string email)
+        {
+            var result = await _accountService.UnSuspendUserAsync(email);
+            if (result.StatusCode == 200)
+            {
+                var message = new Message(new string[] { email }, "Unsuspend", $"<p>Congrat, you have been unsuspended on lucky crush, you can continue to use our service<p>");
+                _emailServices.SendEmail(message);
                 return Ok(result);
             }
             else if (result.StatusCode == 404)

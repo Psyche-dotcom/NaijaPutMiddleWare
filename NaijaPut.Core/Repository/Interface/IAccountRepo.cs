@@ -1,10 +1,12 @@
 ﻿using NaijaPut.Core.DTO.Account;
+using NaijaPut.Core.DTO.Others;
 using NaijaPut.Core.Entities;
 
 namespace NaijaPut.Core.Repository.Interface
 {
     public interface IAccountRepo
     {
+        Task<DisplayUserWithRoleDto> GetUserWithDetails(string userid);
         Task<ApplicationUser> SignUpAsync(ApplicationUser user, string Password);
 
         Task<bool> CheckAccountPassword(ApplicationUser user, string password);
